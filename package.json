@@ -13,7 +13,7 @@
     "smoke": "node src/smoke-test.js",
     "start": "node src/server.js",
     "test": "npm run test:unit && node --no-warnings src/validate.js",
-    "test:unit": "node src/codex-config.test.js && node src/smoke-test.test.js && node src/source-repo.test.js",
+    "test:unit": "node src/codex-config.test.js && node src/corpus.test.js && node src/project-version.test.js && node src/smoke-test.test.js && node src/source-repo.test.js",
     "validate": "node --no-warnings src/validate.js"
   },
   "engines": {

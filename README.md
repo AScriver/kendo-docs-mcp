@@ -35,6 +35,12 @@ Generate the Codex MCP configuration block for this machine:
 npm run setup:codex
 ```
 
+If you already know which versioned docs corpus this MCP should use by default, include it in the generated config:
+
+```powershell
+npm run setup:codex -- --kendo-version 2025.3.812
+```
+
 Paste the printed TOML block into `%USERPROFILE%\.codex\config.toml`, then restart Codex so the MCP server is loaded. The setup script intentionally prints a sanitized local block instead of editing global Codex config.
 
 Run the smoke test from this repo:
@@ -100,7 +106,7 @@ The helper creates or reuses a detached git worktree under `.cache/kendo-worktre
 - `source_git_ref`
 - `source_git_commit`
 
-At runtime, a supplied tool `version` always selects `generated/<version>/`. If `version` is omitted, the server preserves legacy `generated/` behavior when no versioned corpus exists, uses the only available versioned corpus when exactly one exists, and asks for an explicit version when multiple versioned corpora exist.
+At runtime, a supplied tool `version` always selects `generated/<version>/`. If `version` is omitted and `KENDO_DOCS_VERSION` is set in the MCP config environment, the server uses that configured version. Without `KENDO_DOCS_VERSION`, it preserves legacy `generated/` behavior when no versioned corpus exists, uses the only available versioned corpus when exactly one exists, and asks for an explicit version when multiple versioned corpora exist.
 
 ## Run The MCP Server
 
@@ -123,6 +129,9 @@ Example Codex MCP configuration:
 command = "node"
 args = ["--no-warnings", "C:/Code/kendo-docs-mcp/src/server.js"]
 cwd = "C:/Code/kendo-docs-mcp"
+
+[mcp_servers.kendo-docs.env]
+KENDO_DOCS_VERSION = "2025.3.812"
 ```
 
 ## Tools
@@ -135,7 +144,7 @@ cwd = "C:/Code/kendo-docs-mcp"
 - `list_kendo_doc_versions`: list available generated corpora, including version metadata, targets, and chunk counts.
 - `detect_project_kendo_versions`: scan a project for `Telerik.UI.for.AspNet.Core` and Kendo CDN script versions, then recommend a docs corpus version.
 
-The lookup tools also accept optional `version`:
+The lookup tools also accept optional `version`, which overrides `KENDO_DOCS_VERSION` for that call:
 
 ```json
 {

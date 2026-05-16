@@ -5,6 +5,7 @@ const TOOL_ROOT = path.resolve(__dirname, "..");
 const GENERATED_DIR = process.env.KENDO_DOCS_GENERATED_DIR
   ? path.resolve(process.env.KENDO_DOCS_GENERATED_DIR)
   : path.join(TOOL_ROOT, "generated");
+const CONFIGURED_DOCS_VERSION = process.env.KENDO_DOCS_VERSION ? process.env.KENDO_DOCS_VERSION.trim() : "";
 
 const FILE_NAMES = {
   chunks: "chunks.jsonl",
@@ -34,6 +35,10 @@ function corpusPaths(dir) {
   };
 }
 
+function resolveGeneratedDir(generatedDir) {
+  return generatedDir ? path.resolve(generatedDir) : GENERATED_DIR;
+}
+
 function hasCorpus(dir) {
   const paths = corpusPaths(dir);
   return fs.existsSync(paths.chunks) && fs.existsSync(paths.index) && fs.existsSync(paths.sqlite);
@@ -46,21 +51,23 @@ function readMetadata(paths) {
   return JSON.parse(fs.readFileSync(paths.metadata, "utf8"));
 }
 
-function versionedCorpusDirs() {
-  if (!fs.existsSync(GENERATED_DIR)) {
+function versionedCorpusDirs(generatedDir = GENERATED_DIR) {
+  const root = resolveGeneratedDir(generatedDir);
+  if (!fs.existsSync(root)) {
     return [];
   }
   return fs
-    .readdirSync(GENERATED_DIR, { withFileTypes: true })
+    .readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => ({ version: entry.name, dir: path.join(GENERATED_DIR, entry.name) }))
+    .map((entry) => ({ version: entry.name, dir: path.join(root, entry.name) }))
     .filter((entry) => hasCorpus(entry.dir))
     .sort((a, b) => a.version.localeCompare(b.version));
 }
 
 function resolveCorpus(version) {
-  if (version) {
-    const clean = safeVersionSegment(version);
+  const effectiveVersion = version || CONFIGURED_DOCS_VERSION;
+  if (effectiveVersion) {
+    const clean = safeVersionSegment(effectiveVersion);
     const dir = path.join(GENERATED_DIR, clean);
     if (!hasCorpus(dir)) {
       throw new Error(`Kendo docs corpus for version ${clean} is not available. Build it first with node src/build-version.js --version ${clean}.`);
@@ -131,9 +138,10 @@ function getCorpusForVersion(version) {
   };
 }
 
-function listKendoDocVersions() {
+function listKendoDocVersions({ generatedDir } = {}) {
+  const root = resolveGeneratedDir(generatedDir);
   const corpora = [];
-  for (const entry of versionedCorpusDirs()) {
+  for (const entry of versionedCorpusDirs(root)) {
     const paths = corpusPaths(entry.dir);
     const metadata = readMetadata(paths);
     const index = fs.existsSync(paths.index) ? JSON.parse(fs.readFileSync(paths.index, "utf8")) : {};
@@ -149,8 +157,8 @@ function listKendoDocVersions() {
     });
   }
 
-  const legacyPaths = corpusPaths(GENERATED_DIR);
-  if (hasCorpus(GENERATED_DIR)) {
+  const legacyPaths = corpusPaths(root);
+  if (hasCorpus(root)) {
     const metadata = readMetadata(legacyPaths);
     const index = fs.existsSync(legacyPaths.index) ? JSON.parse(fs.readFileSync(legacyPaths.index, "utf8")) : {};
     corpora.push({
@@ -182,5 +190,6 @@ module.exports = {
   hasCorpus,
   listKendoDocVersions,
   resolveCorpus,
+  resolveGeneratedDir,
   safeVersionSegment
 };

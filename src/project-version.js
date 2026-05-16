@@ -80,6 +80,29 @@ function kendoCdnVersionsFromScriptTags(html) {
   return versions;
 }
 
+function compareTelerikVersions(left, right) {
+  const leftParts = String(left).split(".");
+  const rightParts = String(right).split(".");
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index] || "0";
+    const rightPart = rightParts[index] || "0";
+    const leftNumber = Number.parseInt(leftPart, 10);
+    const rightNumber = Number.parseInt(rightPart, 10);
+    if (Number.isNaN(leftNumber) || Number.isNaN(rightNumber)) {
+      const partComparison = leftPart.localeCompare(rightPart);
+      if (partComparison !== 0) {
+        return partComparison;
+      }
+      continue;
+    }
+    if (leftNumber !== rightNumber) {
+      return leftNumber - rightNumber;
+    }
+  }
+  return String(left).localeCompare(String(right));
+}
+
 function detectProjectKendoVersions({ project_root } = {}) {
   if (!project_root) {
     throw new Error("project_root is required");
@@ -104,8 +127,8 @@ function detectProjectKendoVersions({ project_root } = {}) {
     }
   }
 
-  const packageVersions = Array.from(new Set(packageMatches.map((entry) => entry.version))).sort();
-  const cdnVersions = Array.from(new Set(cdnMatches.map((entry) => entry.version))).sort();
+  const packageVersions = Array.from(new Set(packageMatches.map((entry) => entry.version))).sort(compareTelerikVersions);
+  const cdnVersions = Array.from(new Set(cdnMatches.map((entry) => entry.version))).sort(compareTelerikVersions);
 
   if (packageVersions.length > 1) {
     warnings.push(`Multiple ${PACKAGE_NAME} versions were found: ${packageVersions.join(", ")}.`);
@@ -114,8 +137,8 @@ function detectProjectKendoVersions({ project_root } = {}) {
     warnings.push(`Multiple Kendo CDN versions were found: ${cdnVersions.join(", ")}.`);
   }
 
-  const aspnetCorePackageVersion = packageVersions[0] || null;
-  const recommendedDocsVersion = aspnetCorePackageVersion || cdnVersions[0] || null;
+  const aspnetCorePackageVersion = packageVersions[packageVersions.length - 1] || null;
+  const recommendedDocsVersion = aspnetCorePackageVersion || cdnVersions[cdnVersions.length - 1] || null;
 
   if (aspnetCorePackageVersion && cdnVersions.length && !cdnVersions.includes(aspnetCorePackageVersion)) {
     warnings.push(`Telerik package version ${aspnetCorePackageVersion} does not match Kendo CDN version(s): ${cdnVersions.join(", ")}. Preferring the package version.`);

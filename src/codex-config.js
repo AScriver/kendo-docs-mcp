@@ -34,7 +34,7 @@ function isNodeVersionSupported(version, minimum = MIN_NODE_VERSION) {
   return true;
 }
 
-function buildCodexConfig({ repoRoot, nodeCommand = "node", nodeArgs = ["--no-warnings"], generatedDir } = {}) {
+function buildCodexConfig({ repoRoot, nodeCommand = "node", nodeArgs = ["--no-warnings"], generatedDir, kendoVersion } = {}) {
   const root = normalizeConfigPath(repoRoot || path.resolve(__dirname, ".."));
   const args = [...nodeArgs, `${root}/src/server.js`].map((arg) => formatTomlString(arg)).join(", ");
   const lines = [
@@ -44,8 +44,15 @@ function buildCodexConfig({ repoRoot, nodeCommand = "node", nodeArgs = ["--no-wa
     `cwd = ${formatTomlString(root)}`
   ];
 
+  const envLines = [];
   if (generatedDir) {
-    lines.push("", "[mcp_servers.kendo-docs.env]", `KENDO_DOCS_GENERATED_DIR = ${formatTomlString(normalizeConfigPath(generatedDir))}`);
+    envLines.push(`KENDO_DOCS_GENERATED_DIR = ${formatTomlString(normalizeConfigPath(generatedDir))}`);
+  }
+  if (kendoVersion) {
+    envLines.push(`KENDO_DOCS_VERSION = ${formatTomlString(kendoVersion.trim())}`);
+  }
+  if (envLines.length) {
+    lines.push("", "[mcp_servers.kendo-docs.env]", ...envLines);
   }
 
   return `${lines.join("\n")}\n`;
@@ -73,11 +80,12 @@ function buildConfigInstructions({
   repoRoot = path.resolve(__dirname, ".."),
   nodeCommand = "node",
   generatedDir,
+  kendoVersion,
   generatedVersions = [],
   legacyCorpusAvailable = false,
   nodeVersion = process.versions.node
 } = {}) {
-  const config = buildCodexConfig({ repoRoot, nodeCommand, generatedDir });
+  const config = buildCodexConfig({ repoRoot, nodeCommand, generatedDir, kendoVersion });
   const status = resolveSetupStatus({ nodeVersion, generatedVersions, legacyCorpusAvailable });
   const lines = [
     "Copy this block into your Codex config.toml, then restart Codex:",
@@ -116,20 +124,28 @@ function getArgValue(args, name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+function discoverSetupCorpora({ generatedDir } = {}) {
+  const corpora = listKendoDocVersions({ generatedDir });
+  return {
+    generatedVersions: corpora
+      .filter((entry) => !entry.is_legacy && entry.version)
+      .map((entry) => entry.version),
+    legacyCorpusAvailable: corpora.some((entry) => entry.is_legacy)
+  };
+}
+
 function runCli(args = process.argv.slice(2)) {
   const repoRoot = path.resolve(getArgValue(args, "--repo-root") || path.resolve(__dirname, ".."));
   const nodeCommand = getArgValue(args, "--node-command") || "node";
   const generatedDir = getArgValue(args, "--generated-dir") || null;
-  const corpora = listKendoDocVersions();
-  const generatedVersions = corpora
-    .filter((entry) => !entry.is_legacy && entry.version)
-    .map((entry) => entry.version);
-  const legacyCorpusAvailable = corpora.some((entry) => entry.is_legacy);
+  const kendoVersion = getArgValue(args, "--kendo-version") || null;
+  const { generatedVersions, legacyCorpusAvailable } = discoverSetupCorpora({ generatedDir });
 
   process.stdout.write(buildConfigInstructions({
     repoRoot,
     nodeCommand,
     generatedDir,
+    kendoVersion,
     generatedVersions,
     legacyCorpusAvailable
   }));
@@ -147,6 +163,7 @@ if (require.main === module) {
 module.exports = {
   buildCodexConfig,
   buildConfigInstructions,
+  discoverSetupCorpora,
   formatTomlString,
   isNodeVersionSupported,
   resolveSetupStatus,
