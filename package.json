@@ -1,0 +1,17 @@
+{
+  "name": "kendo-docs-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Kendo UI documentation extraction corpus and MCP server.",
+  "main": "src/server.js",
+  "scripts": {
+    "build:docs": "node src/extract.js",
+    "start": "node src/server.js",
+    "test": "node src/validate.js",
+    "validate": "node src/validate.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "UNLICENSED"
+}
