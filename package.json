@@ -7,9 +7,14 @@
   "scripts": {
     "build:docs": "node src/extract.js",
     "build:version": "node src/build-version.js",
+    "setup": "npm run setup:source && npm run setup:codex",
+    "setup:codex": "node src/codex-config.js",
+    "setup:source": "node src/source-repo.js",
+    "smoke": "node src/smoke-test.js",
     "start": "node src/server.js",
-    "test": "node src/validate.js",
-    "validate": "node src/validate.js"
+    "test": "npm run test:unit && node --no-warnings src/validate.js",
+    "test:unit": "node src/codex-config.test.js && node src/smoke-test.test.js && node src/source-repo.test.js",
+    "validate": "node --no-warnings src/validate.js"
   },
   "engines": {
     "node": ">=22.5.0"

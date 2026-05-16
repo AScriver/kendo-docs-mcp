@@ -4,18 +4,59 @@ Standalone local tooling for extracting rendered, source-linked Telerik/Kendo do
 
 The generated corpus stores rendered documentation text only. It does not keep raw Markdown with `{{ site.* }}` placeholders as a model-facing field.
 
-## Source Repository
+## Quick Teammate Setup
 
-The Kendo UI Core repository is required only when rebuilding the generated corpus. Point the extractor at a local checkout:
+Prerequisite: Node.js 22.5.0 or newer. The server uses built-in Node SQLite support and has no npm package dependencies.
 
 ```powershell
-$env:KENDO_DOCS_REPO_ROOT = "C:\Users\AustinScriver\Code\kendo-ui-core"
+git clone <repo-url> kendo-docs-mcp
+cd kendo-docs-mcp
+node --version
+npm run setup:source
 ```
 
-You can also pass the repo root directly:
+`setup:source` reuses `KENDO_DOCS_REPO_ROOT` or a sibling `..\kendo-ui-core` checkout when present. If neither exists, it clones `https://github.com/telerik/kendo-ui-core.git` to `..\kendo-ui-core`.
+
+Build a docs corpus if `generated/` was not shared with the checkout. For a single current corpus:
 
 ```powershell
-node src/extract.js --repo-root "C:\Users\AustinScriver\Code\kendo-ui-core"
+npm run build:docs
+```
+
+For a versioned corpus from a Kendo UI Core tag:
+
+```powershell
+npm run build:version -- --version 2025.3.812
+```
+
+Generate the Codex MCP configuration block for this machine:
+
+```powershell
+npm run setup:codex
+```
+
+Paste the printed TOML block into `%USERPROFILE%\.codex\config.toml`, then restart Codex so the MCP server is loaded. The setup script intentionally prints a sanitized local block instead of editing global Codex config.
+
+Run the smoke test from this repo:
+
+```powershell
+npm run smoke
+```
+
+The smoke test starts the MCP server over stdio, verifies `initialize`, lists the tools, calls `list_kendo_doc_versions`, and runs a one-result `search_kendo_docs` query when a generated corpus is available.
+
+## Source Repository
+
+The Kendo UI Core repository is required only when rebuilding the generated corpus. The setup helper reuses an existing local checkout or clones it from GitHub:
+
+```powershell
+npm run setup:source
+```
+
+By default, the helper checks `KENDO_DOCS_REPO_ROOT`, then `..\kendo-ui-core` next to this repo. You can still point the extractor at a specific checkout:
+
+```powershell
+node src/extract.js --repo-root "C:\Code\kendo-ui-core"
 ```
 
 ## Render Targets
@@ -50,7 +91,7 @@ Generated output is written to the legacy `generated/` corpus:
 To build a versioned corpus from a Kendo UI Core git tag without touching a dirty source checkout, use:
 
 ```powershell
-node src/build-version.js --source-repo "C:\Users\AustinScriver\Code\kendo-ui-core" --version 2025.3.812
+npm run build:version -- --version 2025.3.812
 ```
 
 The helper creates or reuses a detached git worktree under `.cache/kendo-worktrees/<version>/`, then writes the generated docs to `generated/<version>/`. Versioned `metadata.json` and `index.json` include:
@@ -69,18 +110,19 @@ After `generated/` has been built, the MCP server reads only the local generated
 npm start
 ```
 
-Example MCP client configuration:
+For Codex, prefer the generated local config:
 
-```json
-{
-  "mcpServers": {
-    "kendo-docs": {
-      "command": "node",
-      "args": ["C:/Users/AustinScriver/Code/kendo-docs-mcp/src/server.js"],
-      "cwd": "C:/Users/AustinScriver/Code/kendo-docs-mcp"
-    }
-  }
-}
+```powershell
+npm run setup:codex
+```
+
+Example Codex MCP configuration:
+
+```toml
+[mcp_servers.kendo-docs]
+command = "node"
+args = ["--no-warnings", "C:/Code/kendo-docs-mcp/src/server.js"]
+cwd = "C:/Code/kendo-docs-mcp"
 ```
 
 ## Tools
@@ -107,6 +149,14 @@ The lookup tools also accept optional `version`:
 Project detection is scoped to Telerik/Kendo versions only. It does not inspect or report jQuery versions.
 
 ## Validate
+
+Quick MCP smoke test:
+
+```powershell
+npm run smoke
+```
+
+Full corpus validation:
 
 ```powershell
 npm run validate

@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { TOOL_ROOT, safeVersionSegment } = require("./corpus");
+const { ensureKendoSourceRepo } = require("./source-repo");
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -72,15 +73,13 @@ function ensureWorktree(sourceRepo, version, gitRef) {
 }
 
 function main() {
-  const sourceRepo = argValue("--source-repo");
+  const sourceRepoArg = argValue("--source-repo");
   const versionArg = argValue("--version");
-  if (!sourceRepo) {
-    throw new Error("--source-repo is required");
-  }
   if (!versionArg) {
     throw new Error("--version is required");
   }
 
+  const sourceRepo = sourceRepoArg || ensureKendoSourceRepo();
   const version = safeVersionSegment(versionArg);
   const sourceRepoPath = path.resolve(sourceRepo);
   const gitRef = ensureTagRef(sourceRepoPath, version);

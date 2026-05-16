@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
+const { ensureKendoSourceRepo } = require("./source-repo");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
 const GENERATED_DIR = process.env.KENDO_DOCS_GENERATED_DIR
@@ -23,11 +24,11 @@ function getArgValue(name) {
 }
 
 function getRepoRoot() {
-  const configured = getArgValue("--repo-root") || process.env.KENDO_DOCS_REPO_ROOT;
-  if (!configured) {
-    throw new Error("Kendo docs repo root is required. Set KENDO_DOCS_REPO_ROOT or pass --repo-root <path>.");
+  const configured = getArgValue("--repo-root");
+  if (configured) {
+    return path.resolve(configured);
   }
-  return path.resolve(configured);
+  return ensureKendoSourceRepo();
 }
 
 const API_SECTION_MEMBER_TYPES = new Map([
