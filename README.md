@@ -40,12 +40,26 @@ Unresolved include-style tags are reported in `render_warnings`; raw source text
 npm run build:docs
 ```
 
-Generated output is written to `generated/`:
+Generated output is written to the legacy `generated/` corpus:
 
 - `chunks.jsonl`: rendered documentation chunks.
 - `index.json`: component, member, and source-path lookup indexes.
 - `metadata.json`: source file and generation metadata.
 - `docs.sqlite`: SQLite FTS5 search index.
+
+To build a versioned corpus from a Kendo UI Core git tag without touching a dirty source checkout, use:
+
+```powershell
+node src/build-version.js --source-repo "C:\Users\AustinScriver\Code\kendo-ui-core" --version 2025.3.812
+```
+
+The helper creates or reuses a detached git worktree under `.cache/kendo-worktrees/<version>/`, then writes the generated docs to `generated/<version>/`. Versioned `metadata.json` and `index.json` include:
+
+- `docs_version`
+- `source_git_ref`
+- `source_git_commit`
+
+At runtime, a supplied tool `version` always selects `generated/<version>/`. If `version` is omitted, the server preserves legacy `generated/` behavior when no versioned corpus exists, uses the only available versioned corpus when exactly one exists, and asks for an explicit version when multiple versioned corpora exist.
 
 ## Run The MCP Server
 
@@ -76,6 +90,21 @@ Example MCP client configuration:
 - `get_kendo_api_member`: exact or best matching API member lookup by component, member name, member type, and render target.
 - `list_kendo_components`: list discovered components/widgets/modules, optionally by render target.
 - `find_kendo_examples`: find rendered chunks with matching code examples.
+- `list_kendo_doc_versions`: list available generated corpora, including version metadata, targets, and chunk counts.
+- `detect_project_kendo_versions`: scan a project for `Telerik.UI.for.AspNet.Core` and Kendo CDN script versions, then recommend a docs corpus version.
+
+The lookup tools also accept optional `version`:
+
+```json
+{
+  "query": "Grid Excel export",
+  "component": "Grid",
+  "render_target": "aspnet-core",
+  "version": "2025.3.812"
+}
+```
+
+Project detection is scoped to Telerik/Kendo versions only. It does not inspect or report jQuery versions.
 
 ## Validate
 

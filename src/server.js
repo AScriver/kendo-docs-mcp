@@ -12,6 +12,7 @@ const tools = [
         source_type: { type: "string", enum: ["api", "guide", "example", "overview", "unknown"] },
         member_type: { type: "string", enum: ["configuration", "method", "event", "field", "property", "overview", "example"] },
         render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] },
+        version: { type: "string" },
         limit: { type: "number" }
       },
       required: ["query"]
@@ -24,7 +25,8 @@ const tools = [
       type: "object",
       properties: {
         id: { type: "string" },
-        include_neighbors: { type: "boolean" }
+        include_neighbors: { type: "boolean" },
+        version: { type: "string" }
       },
       required: ["id"]
     }
@@ -38,7 +40,8 @@ const tools = [
         component: { type: "string" },
         member_name: { type: "string" },
         member_type: { type: "string", enum: ["configuration", "method", "event", "field", "property", "overview", "example"] },
-        render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] }
+        render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] },
+        version: { type: "string" }
       },
       required: ["component", "member_name"]
     }
@@ -50,7 +53,8 @@ const tools = [
       type: "object",
       properties: {
         query: { type: "string" },
-        render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] }
+        render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] },
+        version: { type: "string" }
       }
     }
   },
@@ -63,9 +67,29 @@ const tools = [
         query: { type: "string" },
         component: { type: "string" },
         render_target: { type: "string", enum: ["jquery", "aspnet-core", "aspnet-mvc"] },
+        version: { type: "string" },
         limit: { type: "number" }
       },
       required: ["query"]
+    }
+  },
+  {
+    name: "detect_project_kendo_versions",
+    description: "Detect Telerik/Kendo versions from a project csproj package reference and Kendo CDN script tags.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_root: { type: "string" }
+      },
+      required: ["project_root"]
+    }
+  },
+  {
+    name: "list_kendo_doc_versions",
+    description: "List available local generated Kendo docs corpora.",
+    inputSchema: {
+      type: "object",
+      properties: {}
     }
   }
 ];

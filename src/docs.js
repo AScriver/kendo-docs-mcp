@@ -1,25 +1,39 @@
+const fs = require("node:fs");
+const { DatabaseSync } = require("node:sqlite");
 const {
-  CHUNKS_PATH,
   excerpt,
-  loadIndex,
-  openDatabase,
   readJsonLines,
   scoreChunk,
-  tokenize,
-  validateGeneratedCorpus
+  tokenize
 } = require("./lib");
+const { listKendoDocVersions, resolveCorpus } = require("./corpus");
+const { detectProjectKendoVersions } = require("./project-version");
 
-let chunksById = null;
-let indexCache = null;
+const loadedCorpora = new Map();
 
-function ensureLoaded() {
-  validateGeneratedCorpus();
-  if (!chunksById) {
-    chunksById = new Map(readJsonLines(CHUNKS_PATH).map((chunk) => [chunk.id, chunk]));
+function corpusSignature(corpus) {
+  return [corpus.paths.chunks, corpus.paths.index, corpus.paths.metadata, corpus.paths.sqlite]
+    .map((filePath) => `${filePath}:${fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : 0}`)
+    .join("|");
+}
+
+function loadCorpus(version) {
+  const corpus = resolveCorpus(version);
+  const signature = corpusSignature(corpus);
+  const cached = loadedCorpora.get(corpus.paths.dir);
+  if (!cached || cached.signature !== signature) {
+    loadedCorpora.set(corpus.paths.dir, {
+      ...corpus,
+      signature,
+      chunksById: new Map(readJsonLines(corpus.paths.chunks).map((chunk) => [chunk.id, chunk])),
+      index: fs.existsSync(corpus.paths.index) ? JSON.parse(fs.readFileSync(corpus.paths.index, "utf8")) : {}
+    });
   }
-  if (!indexCache) {
-    indexCache = loadIndex();
-  }
+  return loadedCorpora.get(corpus.paths.dir);
+}
+
+function openCorpusDatabase(corpus, readonly = true) {
+  return new DatabaseSync(corpus.paths.sqlite, { readOnly: readonly });
 }
 
 function parseRow(row) {
@@ -37,12 +51,15 @@ function parseRow(row) {
 }
 
 function getChunk(id) {
-  ensureLoaded();
-  const cached = chunksById.get(id);
+  return getChunkFromCorpus(loadCorpus(), id);
+}
+
+function getChunkFromCorpus(corpus, id) {
+  const cached = corpus.chunksById.get(id);
   if (cached) {
     return cached;
   }
-  const db = openDatabase();
+  const db = openCorpusDatabase(corpus);
   try {
     return parseRow(db.prepare("SELECT * FROM chunks WHERE id = ?").get(id));
   } finally {
@@ -53,6 +70,9 @@ function getChunk(id) {
 function resultSummary(chunk, query) {
   return {
     id: chunk.id,
+    docs_version: chunk.docs_version || null,
+    source_git_ref: chunk.source_git_ref || null,
+    source_git_commit: chunk.source_git_commit || null,
     title: chunk.title,
     render_target: chunk.render_target,
     product: chunk.product,
@@ -75,8 +95,17 @@ function ftsQuery(query) {
   return terms.map((term) => `"${term}"`).join(" AND ");
 }
 
-function searchKendoDocs({ query, component, source_type, member_type, render_target, limit = 10 } = {}) {
-  ensureLoaded();
+function withCorpusMetadata(chunk, corpus) {
+  return {
+    ...chunk,
+    docs_version: chunk.docs_version || corpus.docs_version || null,
+    source_git_ref: chunk.source_git_ref || corpus.metadata.source_git_ref || null,
+    source_git_commit: chunk.source_git_commit || corpus.metadata.source_git_commit || null
+  };
+}
+
+function searchKendoDocs({ query, component, source_type, member_type, render_target, version, limit = 10 } = {}) {
+  const corpus = loadCorpus(version);
   if (!query || !query.trim()) {
     throw new Error("query is required");
   }
@@ -113,9 +142,9 @@ function searchKendoDocs({ query, component, source_type, member_type, render_ta
       ORDER BY rank
       LIMIT ?
     `;
-    const db = openDatabase();
+    const db = openCorpusDatabase(corpus);
     try {
-      candidates = db.prepare(sql).all(...params, Math.max(max * 4, 25)).map(parseRow);
+      candidates = db.prepare(sql).all(...params, Math.max(max * 4, 25)).map(parseRow).map((chunk) => withCorpusMetadata(chunk, corpus));
     } catch {
       candidates = [];
     } finally {
@@ -124,7 +153,8 @@ function searchKendoDocs({ query, component, source_type, member_type, render_ta
   }
 
   if (candidates.length < max) {
-    for (const chunk of chunksById.values()) {
+    for (const rawChunk of corpus.chunksById.values()) {
+      const chunk = withCorpusMetadata(rawChunk, corpus);
       if (component && (!chunk.component || chunk.component.toLowerCase() !== component.toLowerCase())) {
         continue;
       }
@@ -157,18 +187,21 @@ function searchKendoDocs({ query, component, source_type, member_type, render_ta
     .map((item) => resultSummary(item.chunk, query));
 }
 
-function getKendoDoc({ id, include_neighbors = false } = {}) {
+function getKendoDoc({ id, include_neighbors = false, version } = {}) {
   if (!id) {
     throw new Error("id is required");
   }
-  ensureLoaded();
-  const chunk = getChunk(id);
+  const corpus = loadCorpus(version);
+  const chunk = getChunkFromCorpus(corpus, id);
   if (!chunk) {
     throw new Error(`No Kendo doc chunk found for id ${id}`);
   }
 
   const output = {
     id: chunk.id,
+    docs_version: chunk.docs_version || corpus.docs_version || null,
+    source_git_ref: chunk.source_git_ref || corpus.metadata.source_git_ref || null,
+    source_git_commit: chunk.source_git_commit || corpus.metadata.source_git_commit || null,
     source_path: chunk.source_path,
     source_type: chunk.source_type,
     render_target: chunk.render_target,
@@ -187,18 +220,18 @@ function getKendoDoc({ id, include_neighbors = false } = {}) {
   };
 
   if (include_neighbors) {
-    const ids = indexCache.by_source[`${chunk.render_target}::${chunk.source_path}`] || [];
+    const ids = corpus.index.by_source[`${chunk.render_target}::${chunk.source_path}`] || [];
     const idx = ids.indexOf(id);
     output.neighbors = {
-      previous: idx > 0 ? resultSummary(getChunk(ids[idx - 1]), "") : null,
-      next: idx >= 0 && idx + 1 < ids.length ? resultSummary(getChunk(ids[idx + 1]), "") : null
+      previous: idx > 0 ? resultSummary(withCorpusMetadata(getChunkFromCorpus(corpus, ids[idx - 1]), corpus), "") : null,
+      next: idx >= 0 && idx + 1 < ids.length ? resultSummary(withCorpusMetadata(getChunkFromCorpus(corpus, ids[idx + 1]), corpus), "") : null
     };
   }
   return output;
 }
 
-function getKendoApiMember({ component, member_name, member_type, render_target = "jquery" } = {}) {
-  ensureLoaded();
+function getKendoApiMember({ component, member_name, member_type, render_target = "jquery", version } = {}) {
+  const corpus = loadCorpus(version);
   if (!component || !member_name) {
     throw new Error("component and member_name are required");
   }
@@ -212,12 +245,12 @@ function getKendoApiMember({ component, member_name, member_type, render_target 
   let ids = [];
   for (const candidate of candidateNames) {
     const key = `${render_target}::${component.toLowerCase()}::${candidate.toLowerCase()}`;
-    ids = indexCache.by_member[key] || [];
+    ids = corpus.index.by_member[key] || [];
     if (ids.length) {
       break;
     }
   }
-  let matches = ids.map(getChunk);
+  let matches = ids.map((id) => getChunkFromCorpus(corpus, id));
 
   if (member_type) {
     matches = matches.filter((chunk) => chunk.member_type === member_type);
@@ -225,13 +258,16 @@ function getKendoApiMember({ component, member_name, member_type, render_target 
 
   if (!matches.length) {
     const query = `${component} ${member_name} ${member_type || ""}`.trim();
-    matches = searchKendoDocs({ query, component, member_type, source_type: "api", render_target, limit: 5 })
-      .map((result) => getChunk(result.id))
+    matches = searchKendoDocs({ query, component, member_type, source_type: "api", render_target, version, limit: 5 })
+      .map((result) => getChunkFromCorpus(corpus, result.id))
       .filter(Boolean);
   }
 
   return matches.map((chunk) => ({
     id: chunk.id,
+    docs_version: chunk.docs_version || corpus.docs_version || null,
+    source_git_ref: chunk.source_git_ref || corpus.metadata.source_git_ref || null,
+    source_git_commit: chunk.source_git_commit || corpus.metadata.source_git_commit || null,
     title: chunk.title,
     render_target: chunk.render_target,
     product: chunk.product,
@@ -248,14 +284,17 @@ function getKendoApiMember({ component, member_name, member_type, render_target 
   }));
 }
 
-function listKendoComponents({ query, render_target } = {}) {
-  ensureLoaded();
+function listKendoComponents({ query, render_target, version } = {}) {
+  const corpus = loadCorpus(version);
   const normalized = query ? query.toLowerCase() : null;
-  return indexCache.components
+  return corpus.index.components
     .filter((component) => !render_target || component.render_target === render_target)
     .filter((component) => !normalized || component.name.toLowerCase().includes(normalized))
     .map((component) => ({
       name: component.name,
+      docs_version: corpus.docs_version || null,
+      source_git_ref: corpus.metadata.source_git_ref || null,
+      source_git_commit: corpus.metadata.source_git_commit || null,
       render_target: component.render_target,
       product: component.product,
       chunk_count: component.chunk_count,
@@ -263,18 +302,18 @@ function listKendoComponents({ query, render_target } = {}) {
     }));
 }
 
-function findKendoExamples({ query, component, render_target, limit = 10 } = {}) {
-  ensureLoaded();
+function findKendoExamples({ query, component, render_target, version, limit = 10 } = {}) {
+  const corpus = loadCorpus(version);
   if (!query || !query.trim()) {
     throw new Error("query is required");
   }
   const max = Math.max(1, Math.min(Number(limit) || 10, 50));
-  return searchKendoDocs({ query, component, render_target, limit: max * 3 })
-    .map((result) => getChunk(result.id))
+  return searchKendoDocs({ query, component, render_target, version, limit: max * 3 })
+    .map((result) => getChunkFromCorpus(corpus, result.id))
     .filter((chunk) => chunk.code_blocks && chunk.code_blocks.length > 0)
     .slice(0, max)
     .map((chunk) => ({
-      ...resultSummary(chunk, query),
+      ...resultSummary(withCorpusMetadata(chunk, corpus), query),
       code_blocks: chunk.code_blocks
     }));
 }
@@ -291,6 +330,10 @@ function callTool(name, args) {
       return listKendoComponents(args);
     case "find_kendo_examples":
       return findKendoExamples(args);
+    case "list_kendo_doc_versions":
+      return listKendoDocVersions();
+    case "detect_project_kendo_versions":
+      return detectProjectKendoVersions(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

@@ -6,6 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "build:docs": "node src/extract.js",
+    "build:version": "node src/build-version.js",
     "start": "node src/server.js",
     "test": "node src/validate.js",
     "validate": "node src/validate.js"

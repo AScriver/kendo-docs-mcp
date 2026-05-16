@@ -1,13 +1,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 const {
   API_SECTION_MEMBER_TYPES,
-  CHUNKS_PATH,
-  GENERATED_DIR,
-  INDEX_PATH,
-  META_PATH,
-  SQLITE_PATH,
   contentHash,
   extractCodeBlocks,
   extractHeadings,
@@ -22,6 +18,7 @@ const {
   stripTypeSuffix,
   tokenize
 } = require("./lib");
+const { GENERATED_DIR, corpusPaths, safeVersionSegment } = require("./corpus");
 const { renderMarkdown, targetDefinitions } = require("./render");
 
 const MAX_GUIDE_CHARS = 14000;
@@ -315,7 +312,7 @@ function chunkGuideDocument(base, body) {
   return chunks;
 }
 
-function buildIndexes(chunks) {
+function buildIndexes(chunks, metadata = {}) {
   const components = new Map();
   const byComponent = {};
   const byMember = {};
@@ -343,6 +340,9 @@ function buildIndexes(chunks) {
   }
   return {
     version: GENERATED_VERSION,
+    docs_version: metadata.docs_version || null,
+    source_git_ref: metadata.source_git_ref || null,
+    source_git_commit: metadata.source_git_commit || null,
     generated_at: new Date().toISOString(),
     chunk_count: chunks.length,
     components: Array.from(components.values())
@@ -354,11 +354,11 @@ function buildIndexes(chunks) {
   };
 }
 
-function writeSqlite(chunks) {
-  if (fs.existsSync(SQLITE_PATH)) {
-    fs.rmSync(SQLITE_PATH, { force: true });
+function writeSqlite(chunks, sqlitePath) {
+  if (fs.existsSync(sqlitePath)) {
+    fs.rmSync(sqlitePath, { force: true });
   }
-  const db = new DatabaseSync(SQLITE_PATH);
+  const db = new DatabaseSync(sqlitePath);
   db.exec(`
     PRAGMA journal_mode = DELETE;
     CREATE TABLE chunks (
@@ -454,9 +454,33 @@ function writeSqlite(chunks) {
   }
 }
 
+function getArgValue(name) {
+  const index = process.argv.indexOf(name);
+  if (index >= 0 && process.argv[index + 1]) {
+    return process.argv[index + 1];
+  }
+  const prefix = `${name}=`;
+  const match = process.argv.find((arg) => arg.startsWith(prefix));
+  return match ? match.slice(prefix.length) : null;
+}
+
+function gitValue(repoRoot, args) {
+  try {
+    return execFileSync("git", ["-C", repoRoot, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function main() {
-  fs.mkdirSync(GENERATED_DIR, { recursive: true });
   const repoRoot = getRepoRoot();
+  const docsVersion = getArgValue("--version");
+  const cleanVersion = docsVersion ? safeVersionSegment(docsVersion) : null;
+  const outputDir = cleanVersion ? path.join(GENERATED_DIR, cleanVersion) : GENERATED_DIR;
+  const outputPaths = corpusPaths(outputDir);
+  const sourceGitRef = getArgValue("--source-git-ref") || cleanVersion || gitValue(repoRoot, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const sourceGitCommit = getArgValue("--source-git-commit") || gitValue(repoRoot, ["rev-parse", "HEAD"]);
+  fs.mkdirSync(outputDir, { recursive: true });
   const targets = targetDefinitions(repoRoot);
   const chunks = [];
   const sources = [];
@@ -482,6 +506,9 @@ function main() {
         render_warnings: uniqueWarnings
       };
       const docChunks = base.source_type === "api" ? chunkApiDocument(base, rendered.text) : chunkGuideDocument(base, rendered.text);
+      for (const chunk of docChunks) {
+        chunk.docs_version = cleanVersion;
+      }
       chunks.push(...docChunks);
       sources.push({
         source_path: sourcePath,
@@ -503,14 +530,21 @@ function main() {
     return target || source || a.ordinal - b.ordinal || a.id.localeCompare(b.id);
   });
 
-  fs.writeFileSync(CHUNKS_PATH, `${chunks.map((chunk) => JSON.stringify(chunk)).join("\n")}\n`, "utf8");
-  const index = buildIndexes(chunks);
-  fs.writeFileSync(INDEX_PATH, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+  fs.writeFileSync(outputPaths.chunks, `${chunks.map((chunk) => JSON.stringify(chunk)).join("\n")}\n`, "utf8");
+  const index = buildIndexes(chunks, {
+    docs_version: cleanVersion,
+    source_git_ref: sourceGitRef,
+    source_git_commit: sourceGitCommit
+  });
+  fs.writeFileSync(outputPaths.index, `${JSON.stringify(index, null, 2)}\n`, "utf8");
   fs.writeFileSync(
-    META_PATH,
+    outputPaths.metadata,
     `${JSON.stringify(
       {
         version: GENERATED_VERSION,
+        docs_version: cleanVersion,
+        source_git_ref: sourceGitRef,
+        source_git_commit: sourceGitCommit,
         generated_at: index.generated_at,
         repo_root: repoRoot,
         targets: targets.map((target) => ({
@@ -527,12 +561,12 @@ function main() {
     )}\n`,
     "utf8"
   );
-  writeSqlite(chunks);
+  writeSqlite(chunks, outputPaths.sqlite);
   process.stdout.write(
     `Generated ${chunks.length} chunks from ${sources.length} rendered Markdown target files.\n` +
-      `Corpus: ${CHUNKS_PATH}\n` +
-      `Index: ${INDEX_PATH}\n` +
-      `SQLite: ${SQLITE_PATH}\n`
+      `Corpus: ${outputPaths.chunks}\n` +
+      `Index: ${outputPaths.index}\n` +
+      `SQLite: ${outputPaths.sqlite}\n`
   );
 }
 

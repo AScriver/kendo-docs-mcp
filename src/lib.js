@@ -4,7 +4,9 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
-const GENERATED_DIR = path.join(TOOL_ROOT, "generated");
+const GENERATED_DIR = process.env.KENDO_DOCS_GENERATED_DIR
+  ? path.resolve(process.env.KENDO_DOCS_GENERATED_DIR)
+  : path.join(TOOL_ROOT, "generated");
 const CHUNKS_PATH = path.join(GENERATED_DIR, "chunks.jsonl");
 const META_PATH = path.join(GENERATED_DIR, "metadata.json");
 const INDEX_PATH = path.join(GENERATED_DIR, "index.json");
