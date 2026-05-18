@@ -4,20 +4,32 @@ const { listKendoDocVersions } = require("./corpus");
 
 const MIN_NODE_VERSION = "22.5.0";
 
+/**
+ * Converts a filesystem path to the forward-slash form used in Codex config.
+ */
 function normalizeConfigPath(value) {
   return path.resolve(value).replace(/\\/g, "/");
 }
 
+/**
+ * Escapes a JavaScript value as a double-quoted TOML string literal.
+ */
 function formatTomlString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+/**
+ * Splits a Node version string into comparable numeric parts.
+ */
 function versionParts(version) {
   return String(version)
     .split(".")
     .map((part) => Number(part.replace(/^v/i, "")) || 0);
 }
 
+/**
+ * Checks whether a Node version satisfies this server's minimum requirement.
+ */
 function isNodeVersionSupported(version, minimum = MIN_NODE_VERSION) {
   const actual = versionParts(version);
   const required = versionParts(minimum);
@@ -34,6 +46,9 @@ function isNodeVersionSupported(version, minimum = MIN_NODE_VERSION) {
   return true;
 }
 
+/**
+ * Builds the TOML block that registers this server in Codex.
+ */
 function buildCodexConfig({ repoRoot, nodeCommand = "node", nodeArgs = ["--no-warnings"], generatedDir, kendoVersion } = {}) {
   const root = normalizeConfigPath(repoRoot || path.resolve(__dirname, ".."));
   const args = [...nodeArgs, `${root}/src/server.js`].map((arg) => formatTomlString(arg)).join(", ");
@@ -58,6 +73,9 @@ function buildCodexConfig({ repoRoot, nodeCommand = "node", nodeArgs = ["--no-wa
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Summarizes whether the local runtime and corpus state are ready for use.
+ */
 function resolveSetupStatus({
   nodeVersion = process.versions.node,
   generatedVersions = [],
@@ -76,6 +94,9 @@ function resolveSetupStatus({
   };
 }
 
+/**
+ * Formats the user-facing setup instructions and config block.
+ */
 function buildConfigInstructions({
   repoRoot = path.resolve(__dirname, ".."),
   nodeCommand = "node",
@@ -114,6 +135,9 @@ function buildConfigInstructions({
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Reads a named command-line option from either split or equals syntax.
+ */
 function getArgValue(args, name) {
   const index = args.indexOf(name);
   if (index >= 0 && args[index + 1]) {
@@ -124,6 +148,9 @@ function getArgValue(args, name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+/**
+ * Discovers generated corpora to report during Codex config setup.
+ */
 function discoverSetupCorpora({ generatedDir } = {}) {
   const corpora = listKendoDocVersions({ generatedDir });
   return {
@@ -134,6 +161,9 @@ function discoverSetupCorpora({ generatedDir } = {}) {
   };
 }
 
+/**
+ * Runs the Codex config helper CLI and prints setup guidance.
+ */
 function runCli(args = process.argv.slice(2)) {
   const repoRoot = path.resolve(getArgValue(args, "--repo-root") || path.resolve(__dirname, ".."));
   const nodeCommand = getArgValue(args, "--node-command") || "node";

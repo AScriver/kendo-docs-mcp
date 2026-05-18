@@ -13,6 +13,9 @@ const META_PATH = path.join(GENERATED_DIR, "metadata.json");
 const INDEX_PATH = path.join(GENERATED_DIR, "index.json");
 const SQLITE_PATH = path.join(GENERATED_DIR, "docs.sqlite");
 
+/**
+ * Reads a command-line option from either split or equals syntax.
+ */
 function getArgValue(name) {
   const index = process.argv.indexOf(name);
   if (index >= 0 && process.argv[index + 1]) {
@@ -23,6 +26,9 @@ function getArgValue(name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+/**
+ * Resolves the source repository root from CLI flags, environment, or defaults.
+ */
 function getRepoRoot() {
   const configured = getArgValue("--repo-root");
   if (configured) {
@@ -42,10 +48,16 @@ const API_SECTION_MEMBER_TYPES = new Map([
   ["overview", "overview"]
 ]);
 
+/**
+ * Converts a path to a slash-normalized path relative to the source repository.
+ */
 function repoRelative(filePath) {
   return path.relative(getRepoRoot(), filePath).replace(/\\/g, "/");
 }
 
+/**
+ * Generates a deterministic short id from stable chunk identity parts.
+ */
 function stableId(...parts) {
   return crypto
     .createHash("sha1")
@@ -54,14 +66,23 @@ function stableId(...parts) {
     .slice(0, 16);
 }
 
+/**
+ * Hashes chunk text for generated corpus integrity and change detection.
+ */
 function contentHash(text) {
   return crypto.createHash("sha256").update(text).digest("hex");
 }
 
+/**
+ * Normalizes backslashes to forward slashes for source and output paths.
+ */
 function normalizeSlashes(value) {
   return value.replace(/\\/g, "/");
 }
 
+/**
+ * Converts heading text into the GitHub/Jekyll-style anchor slug used here.
+ */
 function slugify(value) {
   return value
     .toLowerCase()
@@ -73,10 +94,16 @@ function slugify(value) {
     .replace(/\s+/g, "-");
 }
 
+/**
+ * Removes trailing API type annotations from generated member headings.
+ */
 function stripTypeSuffix(heading) {
   return heading.replace(/\s+`[^`]+`.*$/u, "").trim();
 }
 
+/**
+ * Converts dashed or underscored identifiers into title-case words.
+ */
 function titleCaseIdentifier(value) {
   if (!value) {
     return null;
@@ -88,6 +115,9 @@ function titleCaseIdentifier(value) {
     .join("");
 }
 
+/**
+ * Normalizes source component identifiers into display-friendly component names.
+ */
 function normalizeComponentName(value) {
   const known = new Map([
     ["aiprompt", "AIPrompt"],
@@ -114,6 +144,9 @@ function normalizeComponentName(value) {
   return known.get(key) || titleCaseIdentifier(value);
 }
 
+/**
+ * Parses the limited YAML front matter shape needed from Kendo docs markdown.
+ */
 function parseFrontMatter(markdown) {
   if (!markdown.startsWith("---\n") && !markdown.startsWith("---\r\n")) {
     return { data: {}, body: markdown, raw: "" };
@@ -149,6 +182,9 @@ function parseFrontMatter(markdown) {
   return { data, body: markdown.slice(match[0].length), raw };
 }
 
+/**
+ * Extracts markdown headings with levels and source offsets.
+ */
 function extractHeadings(markdown) {
   const headings = [];
   const lines = markdown.split(/\r?\n/);
@@ -175,6 +211,9 @@ function extractHeadings(markdown) {
   return headings;
 }
 
+/**
+ * Extracts fenced code blocks and their declared languages from markdown.
+ */
 function extractCodeBlocks(markdown) {
   const blocks = [];
   const fenced = /```([^\r\n`]*)\r?\n([\s\S]*?)\r?\n```/g;
@@ -209,6 +248,9 @@ function extractCodeBlocks(markdown) {
   return blocks;
 }
 
+/**
+ * Extracts inline markdown links and normalizes their hrefs.
+ */
 function extractLinks(markdown) {
   const links = [];
   const markdownLinks = /\[([^\]]+)\]\(([^)]+)\)/g;
@@ -227,6 +269,9 @@ function extractLinks(markdown) {
   return links;
 }
 
+/**
+ * Reads a newline-delimited JSON file into an array of objects.
+ */
 function readJsonLines(filePath) {
   if (!fs.existsSync(filePath)) {
     return [];
@@ -238,6 +283,9 @@ function readJsonLines(filePath) {
     .map((line) => JSON.parse(line));
 }
 
+/**
+ * Loads the generated JSON search index from disk.
+ */
 function loadIndex() {
   if (!fs.existsSync(INDEX_PATH)) {
     throw new Error(`Index not found at ${INDEX_PATH}. Run npm run build:docs first.`);
@@ -245,6 +293,9 @@ function loadIndex() {
   return JSON.parse(fs.readFileSync(INDEX_PATH, "utf8"));
 }
 
+/**
+ * Opens the default generated SQLite corpus database.
+ */
 function openDatabase(readonly = true) {
   if (!fs.existsSync(SQLITE_PATH)) {
     throw new Error(`SQLite index not found at ${SQLITE_PATH}. Run npm run build:docs first.`);
@@ -252,6 +303,9 @@ function openDatabase(readonly = true) {
   return new DatabaseSync(SQLITE_PATH, { readOnly: readonly });
 }
 
+/**
+ * Tokenizes user queries and corpus fields into lowercase searchable terms.
+ */
 function tokenize(value) {
   return (value || "")
     .toLowerCase()
@@ -261,10 +315,16 @@ function tokenize(value) {
     .filter(Boolean);
 }
 
+/**
+ * Returns non-trivial query terms used for scoring and excerpt placement.
+ */
 function searchTerms(query) {
   return tokenize(query).filter((term) => term.length > 1);
 }
 
+/**
+ * Scores a chunk against a query and optional structured filters.
+ */
 function scoreChunk(chunk, query, filters = {}) {
   const terms = searchTerms(query);
   const haystacks = [
@@ -314,6 +374,9 @@ function scoreChunk(chunk, query, filters = {}) {
   return score;
 }
 
+/**
+ * Builds a compact excerpt around the first matched query term.
+ */
 function excerpt(text, query, maxLength = 360) {
   const compact = (text || "").replace(/\s+/g, " ").trim();
   if (compact.length <= maxLength) {
@@ -333,6 +396,9 @@ function excerpt(text, query, maxLength = 360) {
   return `${start > 0 ? "..." : ""}${slice}${start + maxLength < compact.length ? "..." : ""}`;
 }
 
+/**
+ * Verifies that the default generated corpus artifacts exist.
+ */
 function validateGeneratedCorpus() {
   if (!fs.existsSync(CHUNKS_PATH) || !fs.existsSync(INDEX_PATH) || !fs.existsSync(SQLITE_PATH)) {
     throw new Error("Generated corpus/index files are missing. Run npm run build:docs first.");

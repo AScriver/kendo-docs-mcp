@@ -14,6 +14,9 @@ const FILE_NAMES = {
   sqlite: "docs.sqlite"
 };
 
+/**
+ * Validates and normalizes a Kendo docs version for use as a directory segment.
+ */
 function safeVersionSegment(version) {
   if (!version || typeof version !== "string") {
     throw new Error("version is required");
@@ -25,6 +28,9 @@ function safeVersionSegment(version) {
   return trimmed;
 }
 
+/**
+ * Builds the expected generated corpus file paths for a corpus directory.
+ */
 function corpusPaths(dir) {
   return {
     dir,
@@ -35,15 +41,24 @@ function corpusPaths(dir) {
   };
 }
 
+/**
+ * Resolves an optional generated corpus root against the process default.
+ */
 function resolveGeneratedDir(generatedDir) {
   return generatedDir ? path.resolve(generatedDir) : GENERATED_DIR;
 }
 
+/**
+ * Checks whether a directory contains the required generated corpus files.
+ */
 function hasCorpus(dir) {
   const paths = corpusPaths(dir);
   return fs.existsSync(paths.chunks) && fs.existsSync(paths.index) && fs.existsSync(paths.sqlite);
 }
 
+/**
+ * Reads optional corpus metadata, returning an empty object when absent.
+ */
 function readMetadata(paths) {
   if (!fs.existsSync(paths.metadata)) {
     return {};
@@ -51,6 +66,9 @@ function readMetadata(paths) {
   return JSON.parse(fs.readFileSync(paths.metadata, "utf8"));
 }
 
+/**
+ * Lists versioned corpus directories that contain a usable generated corpus.
+ */
 function versionedCorpusDirs(generatedDir = GENERATED_DIR) {
   const root = resolveGeneratedDir(generatedDir);
   if (!fs.existsSync(root)) {
@@ -64,6 +82,9 @@ function versionedCorpusDirs(generatedDir = GENERATED_DIR) {
     .sort((a, b) => a.version.localeCompare(b.version));
 }
 
+/**
+ * Resolves the effective corpus to use for a requested or configured version.
+ */
 function resolveCorpus(version) {
   const effectiveVersion = version || CONFIGURED_DOCS_VERSION;
   if (effectiveVersion) {
@@ -118,6 +139,9 @@ function resolveCorpus(version) {
   throw new Error("Generated corpus/index files are missing. Run npm run build:docs first.");
 }
 
+/**
+ * Returns metadata for a specific versioned corpus when it has been generated.
+ */
 function getCorpusForVersion(version) {
   if (!version) {
     return null;
@@ -138,6 +162,9 @@ function getCorpusForVersion(version) {
   };
 }
 
+/**
+ * Lists generated Kendo docs corpora with metadata suitable for MCP output.
+ */
 function listKendoDocVersions({ generatedDir } = {}) {
   const root = resolveGeneratedDir(generatedDir);
   const corpora = [];

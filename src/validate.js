@@ -5,6 +5,9 @@ const path = require("node:path");
 const TEST_VERSION = "2025.3.812";
 const DEFAULT_GENERATED_DIR = path.join(__dirname, "..", "generated");
 
+/**
+ * Reuses generated corpus artifacts by hard-linking when possible.
+ */
 function linkOrCopy(source, destination) {
   try {
     fs.linkSync(source, destination);
@@ -13,6 +16,9 @@ function linkOrCopy(source, destination) {
   }
 }
 
+/**
+ * Builds a temporary generated root containing legacy and versioned corpora.
+ */
 function prepareValidationGeneratedRoot() {
   const tempGeneratedDir = fs.mkdtempSync(path.join(os.tmpdir(), "kendo-docs-mcp-generated-"));
   for (const name of ["chunks.jsonl", "index.json", "metadata.json", "docs.sqlite"]) {
@@ -111,6 +117,9 @@ const renderChecks = [
   }
 ];
 
+/**
+ * Selects the strongest validation lookup path for a known test query.
+ */
 function bestResultForQuery(query, version) {
   if (/^Grid dataSource/.test(query)) {
     return getKendoApiMember({ component: "Grid", member_name: "dataSource", member_type: "configuration", version })[0];
@@ -133,6 +142,9 @@ function bestResultForQuery(query, version) {
   return searchKendoDocs({ query, version, limit: 1 })[0];
 }
 
+/**
+ * Formats a short validation excerpt for console output.
+ */
 function excerpt(text) {
   return (text || "").replace(/\s+/g, " ").trim().slice(0, 280);
 }
@@ -189,12 +201,18 @@ if (!versionList.some((entry) => entry.version === TEST_VERSION && entry.chunk_c
   process.stdout.write("Version listing validation failed: generated version metadata was not returned.\n");
 }
 
+/**
+ * Writes a project fixture file under a temporary validation root.
+ */
 function writeFixture(root, relativePath, text) {
   const target = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, text, "utf8");
 }
 
+/**
+ * Creates a temporary project fixture and runs version detection against it.
+ */
 function detectFixture(name, files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `kendo-docs-mcp-${name}-`));
   for (const [relativePath, text] of Object.entries(files)) {

@@ -5,10 +5,16 @@ const { spawnSync } = require("node:child_process");
 const TOOL_ROOT = path.resolve(__dirname, "..");
 const KENDO_UI_CORE_REPO_URL = "https://github.com/telerik/kendo-ui-core.git";
 
+/**
+ * Resolves a configured source repository path to an absolute candidate path.
+ */
 function normalizeCandidatePath(value) {
   return path.resolve(value);
 }
 
+/**
+ * Builds the ordered list of source checkout paths the setup helper should try.
+ */
 function candidateSourceRepoPaths({ toolRoot = TOOL_ROOT, env = process.env } = {}) {
   const candidates = [];
   if (env.KENDO_DOCS_REPO_ROOT) {
@@ -27,6 +33,9 @@ function candidateSourceRepoPaths({ toolRoot = TOOL_ROOT, env = process.env } = 
   });
 }
 
+/**
+ * Checks whether a path is an existing git work tree.
+ */
 function isGitCheckout(repoRoot) {
   const result = spawnSync("git", ["-C", repoRoot, "rev-parse", "--is-inside-work-tree"], {
     encoding: "utf8",
@@ -35,6 +44,9 @@ function isGitCheckout(repoRoot) {
   return result.status === 0 && String(result.stdout).trim() === "true";
 }
 
+/**
+ * Determines whether setup should reuse an existing checkout or clone one.
+ */
 function planSourceRepoSetup({
   toolRoot = TOOL_ROOT,
   env = process.env,
@@ -62,6 +74,9 @@ function planSourceRepoSetup({
   };
 }
 
+/**
+ * Clones the Kendo UI Core repository to the requested local path.
+ */
 function runGitClone(url, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   const result = spawnSync("git", ["clone", url, targetPath], {
@@ -73,10 +88,16 @@ function runGitClone(url, targetPath) {
   }
 }
 
+/**
+ * Escapes a value as a single-quoted PowerShell string literal.
+ */
 function formatPowerShellString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+/**
+ * Ensures a usable Kendo UI Core source checkout exists and returns its path.
+ */
 function ensureKendoSourceRepo(options = {}) {
   const plan = planSourceRepoSetup(options);
   if (plan.action === "use-existing") {
@@ -88,6 +109,9 @@ function ensureKendoSourceRepo(options = {}) {
   return plan.repoRoot;
 }
 
+/**
+ * Runs the source checkout setup CLI and prints the resolved checkout path.
+ */
 function runCli() {
   const repoRoot = ensureKendoSourceRepo();
   process.stdout.write(`Kendo UI Core source checkout ready at ${repoRoot}\n`);

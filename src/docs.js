@@ -11,12 +11,18 @@ const { detectProjectKendoVersions } = require("./project-version");
 
 const loadedCorpora = new Map();
 
+/**
+ * Builds a cache signature from the corpus file paths and modification times.
+ */
 function corpusSignature(corpus) {
   return [corpus.paths.chunks, corpus.paths.index, corpus.paths.metadata, corpus.paths.sqlite]
     .map((filePath) => `${filePath}:${fs.existsSync(filePath) ? fs.statSync(filePath).mtimeMs : 0}`)
     .join("|");
 }
 
+/**
+ * Loads and caches a generated corpus for the requested docs version.
+ */
 function loadCorpus(version) {
   const corpus = resolveCorpus(version);
   const signature = corpusSignature(corpus);
@@ -32,10 +38,16 @@ function loadCorpus(version) {
   return loadedCorpora.get(corpus.paths.dir);
 }
 
+/**
+ * Opens the SQLite database attached to a loaded corpus.
+ */
 function openCorpusDatabase(corpus, readonly = true) {
   return new DatabaseSync(corpus.paths.sqlite, { readOnly: readonly });
 }
 
+/**
+ * Converts a SQLite chunk row into the in-memory chunk shape.
+ */
 function parseRow(row) {
   if (!row) {
     return null;
@@ -50,10 +62,16 @@ function parseRow(row) {
   };
 }
 
+/**
+ * Gets a chunk from the default resolved corpus by id.
+ */
 function getChunk(id) {
   return getChunkFromCorpus(loadCorpus(), id);
 }
 
+/**
+ * Gets a chunk by id from a specific loaded corpus, falling back to SQLite.
+ */
 function getChunkFromCorpus(corpus, id) {
   const cached = corpus.chunksById.get(id);
   if (cached) {
@@ -67,6 +85,9 @@ function getChunkFromCorpus(corpus, id) {
   }
 }
 
+/**
+ * Creates the compact search-result shape returned by lookup tools.
+ */
 function resultSummary(chunk, query) {
   return {
     id: chunk.id,
@@ -85,6 +106,9 @@ function resultSummary(chunk, query) {
   };
 }
 
+/**
+ * Converts free text into a conservative SQLite FTS query string.
+ */
 function ftsQuery(query) {
   const terms = tokenize(query)
     .map((term) => term.replace(/"/g, ""))
@@ -95,6 +119,9 @@ function ftsQuery(query) {
   return terms.map((term) => `"${term}"`).join(" AND ");
 }
 
+/**
+ * Fills version and source metadata from the corpus when a chunk omits it.
+ */
 function withCorpusMetadata(chunk, corpus) {
   return {
     ...chunk,
@@ -104,6 +131,9 @@ function withCorpusMetadata(chunk, corpus) {
   };
 }
 
+/**
+ * Searches the local Kendo docs corpus with optional component and type filters.
+ */
 function searchKendoDocs({ query, component, source_type, member_type, render_target, version, limit = 10 } = {}) {
   const corpus = loadCorpus(version);
   if (!query || !query.trim()) {
@@ -187,6 +217,9 @@ function searchKendoDocs({ query, component, source_type, member_type, render_ta
     .map((item) => resultSummary(item.chunk, query));
 }
 
+/**
+ * Returns a full documentation chunk by deterministic id.
+ */
 function getKendoDoc({ id, include_neighbors = false, version } = {}) {
   if (!id) {
     throw new Error("id is required");
@@ -230,6 +263,9 @@ function getKendoDoc({ id, include_neighbors = false, version } = {}) {
   return output;
 }
 
+/**
+ * Looks up exact or best-matching API member documentation for a component.
+ */
 function getKendoApiMember({ component, member_name, member_type, render_target = "jquery", version } = {}) {
   const corpus = loadCorpus(version);
   if (!component || !member_name) {
@@ -284,6 +320,9 @@ function getKendoApiMember({ component, member_name, member_type, render_target 
   }));
 }
 
+/**
+ * Lists components discovered in the loaded docs corpus.
+ */
 function listKendoComponents({ query, render_target, version } = {}) {
   const corpus = loadCorpus(version);
   const normalized = query ? query.toLowerCase() : null;
@@ -302,6 +341,9 @@ function listKendoComponents({ query, render_target, version } = {}) {
     }));
 }
 
+/**
+ * Searches for documentation chunks that contain runnable or illustrative code.
+ */
 function findKendoExamples({ query, component, render_target, version, limit = 10 } = {}) {
   const corpus = loadCorpus(version);
   if (!query || !query.trim()) {
@@ -318,6 +360,9 @@ function findKendoExamples({ query, component, render_target, version, limit = 1
     }));
 }
 
+/**
+ * Dispatches an MCP tool name to the matching local implementation.
+ */
 function callTool(name, args) {
   switch (name) {
     case "search_kendo_docs":

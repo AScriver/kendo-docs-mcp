@@ -4,6 +4,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+/**
+ * Writes a minimal generated corpus fixture for corpus resolution tests.
+ */
 function writeCorpus(root, version) {
   const dir = path.join(root, version);
   fs.mkdirSync(dir, { recursive: true });

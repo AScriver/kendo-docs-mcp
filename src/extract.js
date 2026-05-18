@@ -24,6 +24,9 @@ const { renderMarkdown, targetDefinitions } = require("./render");
 const MAX_GUIDE_CHARS = 14000;
 const GENERATED_VERSION = 2;
 
+/**
+ * Walks source docs markdown files under a target root.
+ */
 function walkMarkdown(root) {
   const start = path.join(getRepoRoot(), root);
   if (!fs.existsSync(start)) {
@@ -51,6 +54,9 @@ function walkMarkdown(root) {
   return files.sort((a, b) => repoRelative(a).localeCompare(repoRelative(b)));
 }
 
+/**
+ * Classifies a source document as API, guide, example, overview, or unknown.
+ */
 function sourceType(sourcePath, frontMatter) {
   if (frontMatter.res_type === "api" || sourcePath.startsWith("docs/api/")) {
     return "api";
@@ -67,6 +73,9 @@ function sourceType(sourcePath, frontMatter) {
   return "unknown";
 }
 
+/**
+ * Infers the Kendo component name from source metadata, paths, and headings.
+ */
 function inferComponent(sourcePath, frontMatter, title, h1) {
   if (frontMatter.component) {
     return normalizeComponentName(frontMatter.component);
@@ -98,6 +107,9 @@ function inferComponent(sourcePath, frontMatter, title, h1) {
   return null;
 }
 
+/**
+ * Builds the active heading path at a specific source offset.
+ */
 function headingPathFor(headings, endOffset) {
   const pathParts = [];
   for (const heading of headings) {
@@ -110,6 +122,9 @@ function headingPathFor(headings, endOffset) {
   return pathParts.filter(Boolean);
 }
 
+/**
+ * Gets the best document title from front matter, the first h1, or filename.
+ */
 function getDocumentTitle(frontMatter, body, sourcePath) {
   if (frontMatter.title) {
     return frontMatter.title;
@@ -121,6 +136,9 @@ function getDocumentTitle(frontMatter, body, sourcePath) {
   return path.basename(sourcePath, ".md");
 }
 
+/**
+ * Renders Liquid syntax inside front matter values for a target doc flavor.
+ */
 function renderFrontMatterValue(value, target, warnings) {
   if (typeof value === "string") {
     const rendered = renderMarkdown(value, target);
@@ -133,6 +151,9 @@ function renderFrontMatterValue(value, target, warnings) {
   return value;
 }
 
+/**
+ * Renders every front matter value and accumulates rendering warnings.
+ */
 function renderFrontMatterData(frontMatter, target, warnings) {
   const rendered = {};
   for (const [key, value] of Object.entries(frontMatter)) {
@@ -141,6 +162,9 @@ function renderFrontMatterData(frontMatter, target, warnings) {
   return rendered;
 }
 
+/**
+ * Maps API section headings to the normalized member type used by the corpus.
+ */
 function memberTypeFromSection(sectionHeading) {
   if (!sectionHeading) {
     return null;
@@ -148,6 +172,9 @@ function memberTypeFromSection(sectionHeading) {
   return API_SECTION_MEMBER_TYPES.get(sectionHeading.toLowerCase()) || null;
 }
 
+/**
+ * Creates a searchable corpus chunk from rendered markdown text.
+ */
 function createChunk(base, text, headingPath, ordinal, extra = {}) {
   const memberName = extra.member_name || null;
   const memberType = extra.member_type || null;
@@ -203,6 +230,9 @@ function createChunk(base, text, headingPath, ordinal, extra = {}) {
   };
 }
 
+/**
+ * Splits large guide sections into smaller chunks without losing hierarchy.
+ */
 function splitLargeGuideSection(base, text, headingPath, ordinalStart) {
   if (text.length <= MAX_GUIDE_CHARS) {
     return [createChunk(base, text, headingPath, ordinalStart, { default_member_type: "overview" })];
@@ -241,6 +271,9 @@ function splitLargeGuideSection(base, text, headingPath, ordinalStart) {
   return chunks;
 }
 
+/**
+ * Chunks API documents around member sections and member headings.
+ */
 function chunkApiDocument(base, body) {
   const headings = extractHeadings(body);
   const chunks = [];
@@ -284,6 +317,9 @@ function chunkApiDocument(base, body) {
   return chunks;
 }
 
+/**
+ * Chunks guide and overview documents around h2 sections.
+ */
 function chunkGuideDocument(base, body) {
   const headings = extractHeadings(body);
   const h2s = headings.filter((heading) => heading.level === 2);
@@ -312,6 +348,9 @@ function chunkGuideDocument(base, body) {
   return chunks;
 }
 
+/**
+ * Builds the generated JSON index used for lookup and component listings.
+ */
 function buildIndexes(chunks, metadata = {}) {
   const components = new Map();
   const byComponent = {};
@@ -354,6 +393,9 @@ function buildIndexes(chunks, metadata = {}) {
   };
 }
 
+/**
+ * Writes corpus chunks into the SQLite database and FTS table.
+ */
 function writeSqlite(chunks, sqlitePath) {
   if (fs.existsSync(sqlitePath)) {
     fs.rmSync(sqlitePath, { force: true });
@@ -454,6 +496,9 @@ function writeSqlite(chunks, sqlitePath) {
   }
 }
 
+/**
+ * Reads a command-line option from either split or equals syntax.
+ */
 function getArgValue(name) {
   const index = process.argv.indexOf(name);
   if (index >= 0 && process.argv[index + 1]) {
@@ -464,6 +509,9 @@ function getArgValue(name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+/**
+ * Reads a single git value from a source repository, returning null on failure.
+ */
 function gitValue(repoRoot, args) {
   try {
     return execFileSync("git", ["-C", repoRoot, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
@@ -472,6 +520,9 @@ function gitValue(repoRoot, args) {
   }
 }
 
+/**
+ * Extracts rendered Kendo documentation into JSONL, JSON index, and SQLite.
+ */
 function main() {
   const repoRoot = getRepoRoot();
   const docsVersion = getArgValue("--version");

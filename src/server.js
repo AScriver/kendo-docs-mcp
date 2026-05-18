@@ -94,15 +94,24 @@ const tools = [
   }
 ];
 
+/**
+ * Writes a JSON-RPC message to stdout using MCP stdio framing.
+ */
 function send(message) {
   const body = JSON.stringify(message);
   process.stdout.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
 }
 
+/**
+ * Sends a successful JSON-RPC response for the given request id.
+ */
 function success(id, result) {
   send({ jsonrpc: "2.0", id, result });
 }
 
+/**
+ * Sends a JSON-RPC error response from an exception or error-like value.
+ */
 function failure(id, error) {
   send({
     jsonrpc: "2.0",
@@ -114,6 +123,9 @@ function failure(id, error) {
   });
 }
 
+/**
+ * Handles MCP initialize, tool listing, and tool call JSON-RPC messages.
+ */
 function handle(message) {
   if (message.method === "initialize") {
     success(message.id, {

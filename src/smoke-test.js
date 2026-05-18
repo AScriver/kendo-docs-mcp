@@ -3,6 +3,9 @@ const { spawn } = require("node:child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 
+/**
+ * Encodes a JSON-RPC message using MCP stdio framing.
+ */
 function encodeMessage(message) {
   const body = Buffer.from(JSON.stringify(message), "utf8");
   return Buffer.concat([
@@ -11,6 +14,9 @@ function encodeMessage(message) {
   ]);
 }
 
+/**
+ * Decodes all complete MCP-framed JSON-RPC messages from a buffer.
+ */
 function decodeMessages(buffer) {
   const messages = [];
   let remaining = buffer;
@@ -39,6 +45,9 @@ function decodeMessages(buffer) {
   return { messages, remaining };
 }
 
+/**
+ * Extracts a tool result from either structured content or text content.
+ */
 function toolResult(response) {
   if (response.error) {
     throw new Error(response.error.message || JSON.stringify(response.error));
@@ -50,6 +59,9 @@ function toolResult(response) {
   return text ? JSON.parse(text) : null;
 }
 
+/**
+ * Formats a concise human-readable summary of smoke-test coverage.
+ */
 function summarizeSmokeResult({ toolNames, versions, searchResultCount }) {
   const toolText = `${toolNames.length} ${toolNames.length === 1 ? "tool was" : "tools were"} listed`;
   if (!versions.length) {
@@ -58,10 +70,16 @@ function summarizeSmokeResult({ toolNames, versions, searchResultCount }) {
   return `MCP protocol responded, ${toolText}, ${versions.length} docs ${versions.length === 1 ? "corpus was" : "corpora were"} found, and a search returned ${searchResultCount} ${searchResultCount === 1 ? "result" : "results"}.`;
 }
 
+/**
+ * Sends a framed JSON-RPC message to the spawned MCP server.
+ */
 function send(child, message) {
   child.stdin.write(encodeMessage(message));
 }
 
+/**
+ * Waits for a specific JSON-RPC response id from the child process.
+ */
 function waitForMessage(state, id, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const existing = state.messages.find((message) => message.id === id);
@@ -91,6 +109,9 @@ function waitForMessage(state, id, timeoutMs = 10000) {
   });
 }
 
+/**
+ * Runs an end-to-end MCP protocol smoke test against the local server.
+ */
 async function runSmokeTest({ repoRoot = REPO_ROOT, nodeCommand = process.execPath } = {}) {
   const child = spawn(nodeCommand, ["--no-warnings", path.join(repoRoot, "src", "server.js")], {
     cwd: repoRoot,
@@ -184,6 +205,9 @@ async function runSmokeTest({ repoRoot = REPO_ROOT, nodeCommand = process.execPa
   }
 }
 
+/**
+ * Runs the smoke-test CLI and reports failures through the process exit code.
+ */
 async function runCli() {
   try {
     const result = await runSmokeTest();

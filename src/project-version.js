@@ -6,6 +6,9 @@ const PACKAGE_NAME = "Telerik.UI.for.AspNet.Core";
 const CDN_PATTERN = /https:\/\/kendo\.cdn\.telerik\.com\/(\d{4}\.\d+\.\d+)\//gi;
 const SCRIPT_SRC_PATTERN = /<script\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi;
 
+/**
+ * Walks project files recursively while skipping build and dependency folders.
+ */
 function walkFiles(root, predicate) {
   if (!fs.existsSync(root)) {
     throw new Error(`project_root does not exist: ${root}`);
@@ -31,10 +34,16 @@ function walkFiles(root, predicate) {
   return files.sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Converts an absolute path to a slash-normalized path relative to a root.
+ */
 function relativeTo(root, filePath) {
   return path.relative(root, filePath).replace(/\\/g, "/");
 }
 
+/**
+ * Extracts Telerik UI for ASP.NET Core package versions from project XML.
+ */
 function packageVersionsFromCsproj(xml) {
   const versions = [];
   const selfClosing = /<PackageReference\b([^>]*?)\/>/gi;
@@ -66,6 +75,9 @@ function packageVersionsFromCsproj(xml) {
   return versions;
 }
 
+/**
+ * Extracts Kendo CDN versions from script src attributes in Razor markup.
+ */
 function kendoCdnVersionsFromScriptTags(html) {
   const versions = [];
   let scriptMatch;
@@ -80,6 +92,9 @@ function kendoCdnVersionsFromScriptTags(html) {
   return versions;
 }
 
+/**
+ * Compares Telerik-style dotted version strings in ascending order.
+ */
 function compareTelerikVersions(left, right) {
   const leftParts = String(left).split(".");
   const rightParts = String(right).split(".");
@@ -103,6 +118,9 @@ function compareTelerikVersions(left, right) {
   return String(left).localeCompare(String(right));
 }
 
+/**
+ * Detects project Kendo/Telerik versions and recommends a docs corpus version.
+ */
 function detectProjectKendoVersions({ project_root } = {}) {
   if (!project_root) {
     throw new Error("project_root is required");

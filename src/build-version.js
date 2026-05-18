@@ -4,6 +4,9 @@ const { spawnSync } = require("node:child_process");
 const { TOOL_ROOT, safeVersionSegment } = require("./corpus");
 const { ensureKendoSourceRepo } = require("./source-repo");
 
+/**
+ * Reads a command-line option from either split or equals syntax.
+ */
 function argValue(name) {
   const index = process.argv.indexOf(name);
   if (index >= 0 && process.argv[index + 1]) {
@@ -14,6 +17,9 @@ function argValue(name) {
   return match ? match.slice(prefix.length) : null;
 }
 
+/**
+ * Runs a child process and returns captured stdout when requested.
+ */
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd || TOOL_ROOT,
@@ -27,6 +33,9 @@ function run(command, args, options = {}) {
   return options.capture ? (result.stdout || "").trim() : "";
 }
 
+/**
+ * Resolves a Kendo UI Core version to an available git tag or ref.
+ */
 function ensureTagRef(sourceRepo, version) {
   const candidates = [`refs/tags/${version}`, version];
   for (const candidate of candidates) {
@@ -40,10 +49,16 @@ function ensureTagRef(sourceRepo, version) {
   throw new Error(`Could not find Kendo UI Core git tag/ref for version ${version} in ${sourceRepo}.`);
 }
 
+/**
+ * Resolves a git-reported path relative to a repository for comparisons.
+ */
 function resolveGitPath(repoPath, value) {
   return path.resolve(repoPath, value).toLowerCase();
 }
 
+/**
+ * Ensures a detached cached worktree exists at the requested docs version.
+ */
 function ensureWorktree(sourceRepo, version, gitRef) {
   const cacheRoot = path.join(TOOL_ROOT, ".cache", "kendo-worktrees");
   const worktreePath = path.join(cacheRoot, version);
@@ -72,6 +87,9 @@ function ensureWorktree(sourceRepo, version, gitRef) {
   return worktreePath;
 }
 
+/**
+ * Builds a versioned corpus from a source checkout and git ref.
+ */
 function main() {
   const sourceRepoArg = argValue("--source-repo");
   const versionArg = argValue("--version");

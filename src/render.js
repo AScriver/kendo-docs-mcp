@@ -2,6 +2,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { parseFrontMatter, slugify } = require("./lib");
 
+/**
+ * Parses a simple YAML scalar used by the source docs configuration files.
+ */
 function parseScalar(value) {
   const trimmed = value.trim();
   if (trimmed === "true") {
@@ -19,6 +22,9 @@ function parseScalar(value) {
   return trimmed;
 }
 
+/**
+ * Reads top-level and liquid configuration values from a Jekyll YAML file.
+ */
 function parseTopLevelAndLiquid(filePath) {
   if (!filePath || !fs.existsSync(filePath)) {
     return {};
@@ -51,6 +57,9 @@ function parseTopLevelAndLiquid(filePath) {
   return data;
 }
 
+/**
+ * Walks markdown files under a docs root while skipping generated asset folders.
+ */
 function walkMarkdown(rootPath) {
   if (!fs.existsSync(rootPath)) {
     return [];
@@ -73,6 +82,9 @@ function walkMarkdown(rootPath) {
   return files.sort();
 }
 
+/**
+ * Builds a lookup from Jekyll slug values to public documentation paths.
+ */
 function buildSlugMap(repoRoot, docRoot, publicBasePath) {
   const map = new Map();
   for (const filePath of walkMarkdown(path.join(repoRoot, docRoot))) {
@@ -90,6 +102,9 @@ function buildSlugMap(repoRoot, docRoot, publicBasePath) {
   return map;
 }
 
+/**
+ * Parses a Liquid condition literal into a comparable JavaScript value.
+ */
 function parseConditionValue(value) {
   const trimmed = value.trim();
   if (trimmed === "true") {
@@ -107,6 +122,9 @@ function parseConditionValue(value) {
   return trimmed;
 }
 
+/**
+ * Evaluates the subset of Liquid site conditions supported by the renderer.
+ */
 function evaluateSiteCondition(expression, site, warnings) {
   const trimmed = expression.trim();
   const direct = trimmed.match(/^site\.([A-Za-z0-9_-]+)$/);
@@ -125,6 +143,9 @@ function evaluateSiteCondition(expression, site, warnings) {
   return false;
 }
 
+/**
+ * Renders supported Liquid if/else blocks using site configuration values.
+ */
 function renderConditionals(markdown, site, warnings) {
   let output = markdown;
   const pattern = /\{%\s*if\s+([^%]+?)\s*%\}([\s\S]*?)(?:\{%\s*else\s*%\}([\s\S]*?))?\{%\s*endif\s*%\}/g;
@@ -138,6 +159,9 @@ function renderConditionals(markdown, site, warnings) {
   return output;
 }
 
+/**
+ * Renders a site variable and records warnings for unsupported filters.
+ */
 function renderSiteVariable(key, filter, variables, warnings) {
   if (variables[key] === undefined || variables[key] === null) {
     warnings.push(`Unresolved site variable: ${key}`);
@@ -157,6 +181,9 @@ function renderSiteVariable(key, filter, variables, warnings) {
   return String(variables[key]);
 }
 
+/**
+ * Renders the supported Liquid/Jekyll syntax in a markdown document.
+ */
 function renderMarkdown(markdown, context) {
   const warnings = [];
   const rawBlocks = [];
@@ -215,6 +242,9 @@ function renderMarkdown(markdown, context) {
   return { text: output, warnings: Array.from(new Set(warnings)) };
 }
 
+/**
+ * Builds render-target metadata and slug maps for each supported doc target.
+ */
 function targetDefinitions(repoRoot) {
   return [
     {
@@ -253,6 +283,9 @@ function targetDefinitions(repoRoot) {
   });
 }
 
+/**
+ * Generates the anchor id used for extracted heading text.
+ */
 function generatedAnchor(heading) {
   return slugify(heading);
 }
