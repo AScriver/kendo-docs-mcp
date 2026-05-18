@@ -6,27 +6,48 @@ The generated corpus stores rendered documentation text only. It does not keep r
 
 ## Quick Teammate Setup
 
-Prerequisite: Node.js 22.5.0 or newer. The server uses built-in Node SQLite support and has no npm package dependencies.
+Prerequisites:
+
+- Node.js 22.5.0 or newer.
+- Git.
+- Codex Desktop.
+
+The server uses built-in Node SQLite support and has no npm package dependencies.
+
+Send teammates this setup flow:
 
 ```powershell
-git clone <repo-url> kendo-docs-mcp
+git clone https://github.com/AScriver/kendo-docs-mcp.git
 cd kendo-docs-mcp
-node --version
 npm run setup:source
+npm run build:version -- --version 2025.3.812
+npm run setup:codex -- --kendo-version 2025.3.812
 ```
 
 `setup:source` reuses `KENDO_DOCS_REPO_ROOT` or a sibling `..\kendo-ui-core` checkout when present. If neither exists, it clones `https://github.com/telerik/kendo-ui-core.git` to `..\kendo-ui-core`.
 
-Build a docs corpus if `generated/` was not shared with the checkout. For a single current corpus:
+`setup:codex` prints a TOML block with local paths for that machine. Paste the printed block into `%USERPROFILE%\.codex\config.toml`, then restart Codex so the MCP server is loaded.
+
+Do not copy another developer's TOML block unless the repo path is identical. The generated block contains machine-specific `cwd` and `src/server.js` paths.
+
+Run the smoke test from this repo after building the corpus:
+
+```powershell
+npm run smoke
+```
+
+The docs corpus is ignored by git, so each teammate needs to run `npm run build:version -- --version 2025.3.812` unless someone gives them a generated corpus separately. The Kendo source checkout is only needed for rebuilding the corpus; runtime uses the generated files.
+
+To build a single current corpus instead of a versioned corpus:
 
 ```powershell
 npm run build:docs
 ```
 
-For a versioned corpus from a Kendo UI Core tag:
+For a different versioned corpus from a Kendo UI Core tag:
 
 ```powershell
-npm run build:version -- --version 2025.3.812
+npm run build:version -- --version <kendo-version>
 ```
 
 Generate the Codex MCP configuration block for this machine:
@@ -38,15 +59,7 @@ npm run setup:codex
 If you already know which versioned docs corpus this MCP should use by default, include it in the generated config:
 
 ```powershell
-npm run setup:codex -- --kendo-version 2025.3.812
-```
-
-Paste the printed TOML block into `%USERPROFILE%\.codex\config.toml`, then restart Codex so the MCP server is loaded. The setup script intentionally prints a sanitized local block instead of editing global Codex config.
-
-Run the smoke test from this repo:
-
-```powershell
-npm run smoke
+npm run setup:codex -- --kendo-version <kendo-version>
 ```
 
 The smoke test starts the MCP server over stdio, verifies `initialize`, lists the tools, calls `list_kendo_doc_versions`, and runs a one-result `search_kendo_docs` query when a generated corpus is available.
