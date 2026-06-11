@@ -1,4 +1,4 @@
-# Kendo Docs MCP
+# Telerik Kendo Docs MCP
 
 Standalone local tooling for extracting rendered, source-linked Telerik/Kendo documentation from a local `kendo-ui-core` checkout and serving it through MCP.
 
@@ -14,7 +14,7 @@ Prerequisites:
 
 The server uses built-in Node SQLite support and has no npm package dependencies.
 
-Send teammates this setup flow:
+Quick Setup:
 
 ```powershell
 git clone https://github.com/AScriver/kendo-docs-mcp.git
